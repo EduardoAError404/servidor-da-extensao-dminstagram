@@ -1,1 +1,6 @@
-instagrapi\nFlask\npython-dotenv\nflask-cors
+instagrapi
+Flask
+python-dotenv
+flask-cors
+gunicorn
+
