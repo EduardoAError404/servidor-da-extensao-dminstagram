@@ -2,6 +2,7 @@ import os
 import json
 import time
 import random
+import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from instagrapi import Client
@@ -14,6 +15,9 @@ from instagrapi.exceptions import (
     FeedbackRequired
 )
 from dotenv import load_dotenv
+
+# Força o flush do stdout para os logs aparecerem no Gunicorn
+sys.stdout = sys.stderr
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -39,13 +43,22 @@ def get_instagrapi_client():
     # Configura o cliente
     cl = Client()
     
+    print("=" * 50, flush=True)
+    print("Iniciando autenticação do Instagram...", flush=True)
+    
     # Configurações de Anti-Bloqueio
     # 1. User-Agent: O InstaAPI usa um User-Agent móvel legítimo por padrão.
     # 2. Proxy: Se o PROXY estiver definido no .env, será usado.
     proxy = os.getenv("PROXY")
     if proxy:
-        cl.set_proxy(proxy)
-        print(f"Proxy configurado: {proxy}")
+        print(f"Configurando proxy: {proxy}", flush=True)
+        try:
+            cl.set_proxy(proxy)
+            print(f"Proxy configurado com sucesso!", flush=True)
+        except Exception as e:
+            print(f"ERRO ao configurar proxy: {e}", flush=True)
+    else:
+        print("Nenhum proxy configurado.", flush=True)
 
     # 3. Persistência de Sessão (Opcional, mas recomendado para produção)
     # cl.dump_settings("session.json") # Para salvar
@@ -54,7 +67,10 @@ def get_instagrapi_client():
     # Autenticação via Session ID
     session_id = os.getenv("SESSION_ID")
     if not session_id:
+        print("ERRO: SESSION_ID não configurado!", flush=True)
         raise ValueError("SESSION_ID não configurado no arquivo .env. Por favor, configure.")
+    
+    print(f"SESSION_ID encontrado: {session_id[:20]}...", flush=True)
 
     # 3. Persistência de Sessão: Tenta carregar a sessão salva
     session_file = "session.json" # Arquivo genérico, pois não temos o username
@@ -64,24 +80,29 @@ def get_instagrapi_client():
 
     try:
         # Tenta setar o sessionid. Se for um sessionid válido, a autenticação deve ser bem-sucedida.
+        print("Configurando SESSION_ID...", flush=True)
         cl.set_sessionid(session_id)
+        print("SESSION_ID configurado. Verificando autenticação...", flush=True)
         
         # Verifica se o sessionid é válido fazendo uma requisição real
         try:
+            print("Fazendo requisição para account_info()...", flush=True)
             account_info = cl.account_info()
-            print(f"Autenticação bem-sucedida! Usuário: {account_info.username}")
+            print(f"\u2705 Autenticação bem-sucedida! Usuário: {account_info.username}", flush=True)
         except Exception as e:
-            print(f"Erro ao verificar autenticação: {e}")
+            print(f"\u274c Erro ao verificar autenticação: {type(e).__name__}: {e}", flush=True)
             raise LoginRequired("Falha ao autenticar com o SESSION_ID fornecido. O ID pode ter expirado.")
         
         # Salva a sessão para uso futuro (Anti-Bloqueio)
         cl.dump_settings(session_file)
         
-        print("Cliente InstaAPI autenticado com sucesso via SESSION_ID. Sessão salva.")
+        print("Cliente InstaAPI autenticado com sucesso via SESSION_ID. Sessão salva.", flush=True)
+        print("=" * 50, flush=True)
         return cl
 
     except (LoginRequired, ChallengeRequired, TwoFactorRequired, Exception) as e:
-        print(f"Erro de autenticação: {e}")
+        print(f"\u274c ERRO DE AUTENTICAÇÃO: {type(e).__name__}: {e}", flush=True)
+        print("=" * 50, flush=True)
         cl = None # Limpa o cliente para forçar nova tentativa
         raise ConnectionError(f"Falha na autenticação do InstaAPI: {e}")
 
