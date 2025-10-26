@@ -79,19 +79,19 @@ def get_instagrapi_client():
         print(f"Sessão carregada de {session_file}")
 
     try:
-        # Tenta setar o sessionid. Se for um sessionid válido, a autenticação deve ser bem-sucedida.
-        print("Configurando SESSION_ID...", flush=True)
-        cl.set_sessionid(session_id)
-        print("SESSION_ID configurado. Verificando autenticação...", flush=True)
+        # Autentica usando login_by_sessionid (método correto do instagrapi)
+        print("Autenticando com SESSION_ID...", flush=True)
+        cl.login_by_sessionid(session_id)
+        print("\u2705 Autenticação bem-sucedida!", flush=True)
         
         # Verifica se o sessionid é válido fazendo uma requisição real
         try:
-            print("Fazendo requisição para account_info()...", flush=True)
+            print("Obtendo informações da conta...", flush=True)
             account_info = cl.account_info()
-            print(f"\u2705 Autenticação bem-sucedida! Usuário: {account_info.username}", flush=True)
+            print(f"\u2705 Usuário autenticado: {account_info.username} (ID: {account_info.pk})", flush=True)
         except Exception as e:
-            print(f"\u274c Erro ao verificar autenticação: {type(e).__name__}: {e}", flush=True)
-            raise LoginRequired("Falha ao autenticar com o SESSION_ID fornecido. O ID pode ter expirado.")
+            print(f"\u274c Erro ao obter account_info: {type(e).__name__}: {e}", flush=True)
+            raise LoginRequired("Falha ao verificar autenticação. O SESSION_ID pode ter expirado.")
         
         # Salva a sessão para uso futuro (Anti-Bloqueio)
         cl.dump_settings(session_file)
