@@ -66,8 +66,12 @@ def get_instagrapi_client():
         # Tenta setar o sessionid. Se for um sessionid válido, a autenticação deve ser bem-sucedida.
         cl.set_sessionid(session_id)
         
-        if not cl.is_logged_in:
-            # Se falhar, o sessionid pode ter expirado.
+        # Verifica se o sessionid é válido fazendo uma requisição real
+        try:
+            account_info = cl.account_info()
+            print(f"Autenticação bem-sucedida! Usuário: {account_info.username}")
+        except Exception as e:
+            print(f"Erro ao verificar autenticação: {e}")
             raise LoginRequired("Falha ao autenticar com o SESSION_ID fornecido. O ID pode ter expirado.")
         
         # Salva a sessão para uso futuro (Anti-Bloqueio)
