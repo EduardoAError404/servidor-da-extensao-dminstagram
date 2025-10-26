@@ -178,7 +178,22 @@ def send_dm():
 # Endpoint de Teste
 @app.route('/test', methods=['GET'])
 def test_route():
-    return jsonify({"status": "Servidor InstaDM Online", "client_status": cl.is_logged_in if cl else "Not Initialized"}), 200
+    try:
+        client = get_instagrapi_client()
+        # Tenta obter informações da conta para verificar se está realmente autenticado
+        account_info = client.account_info()
+        return jsonify({
+            "status": "Servidor InstaDM Online",
+            "client_status": "Authenticated",
+            "username": account_info.username,
+            "user_id": account_info.pk
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "Servidor InstaDM Online",
+            "client_status": "Not Authenticated",
+            "error": str(e)
+        }), 200
 
 if __name__ == '__main__':
     # Tenta inicializar o cliente na inicialização
