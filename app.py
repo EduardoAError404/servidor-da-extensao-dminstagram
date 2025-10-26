@@ -163,5 +163,5 @@ if __name__ == '__main__':
         print(f"Aviso: Não foi possível autenticar na inicialização. O servidor tentará novamente na primeira requisição. Erro: {e}")
         
     # O servidor deve rodar em 0.0.0.0 para ser acessível pelo expose
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5001, debug=False)
 
