@@ -119,6 +119,8 @@ def send_dm():
 
     username = data.get('username')
     message = data.get('message')
+    delay_min = data.get('delay_min', 5)  # Padrão: 5 segundos
+    delay_max = data.get('delay_max', 15)  # Padrão: 15 segundos
 
     if not username or not message:
         return jsonify({"success": False, "error": "Campos 'username' e 'message' são obrigatórios."}), 400
@@ -141,8 +143,8 @@ def send_dm():
         client.direct_send(text=message, user_ids=[user_id])
         
         # 4. Implementação de Rate Limiting (Anti-Bloqueio)
-        # Espera um tempo aleatório entre 5 e 15 segundos antes de retornar o sucesso
-        delay = random.randint(5, 15)
+        # Usa os delays configurados pela extensão
+        delay = random.randint(delay_min, delay_max)
         print(f"DM enviada para @{username}. Aguardando {delay} segundos (Rate Limit) antes de finalizar a requisição.")
         time.sleep(delay)
 
