@@ -3,6 +3,7 @@ import json
 import time
 import random
 import sys
+import threading
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from instagrapi import Client
@@ -48,6 +49,8 @@ CORS(app) # Adiciona suporte a CORS para todas as rotas e origens
 
 # Inicializa o cliente globalmente (será configurado na primeira requisição)
 cl = None
+# Lock para evitar que múltiplos workers tentem fazer login ao mesmo tempo
+login_lock = threading.Lock()
 
 def get_instagrapi_client():
     """
@@ -56,7 +59,7 @@ def get_instagrapi_client():
     """
     global cl
     
-    session_file = "session.json"
+    session_file = "/tmp/instagram_session.json"
     
     # Se o cliente já estiver autenticado, retorna
     if cl:
@@ -69,79 +72,90 @@ def get_instagrapi_client():
             print("⚠️ Sessão expirada, recarregando...", flush=True)
             cl = None
 
-    # Configura o cliente
-    cl = Client()
-    
-    print("=" * 50, flush=True)
-    print("Carregando sessão do Instagram...", flush=True)
-    
-    # Configurações de Anti-Bloqueio
-    proxy = os.getenv("PROXY")
-    if proxy:
-        print(f"Configurando proxy: {proxy}", flush=True)
-        try:
-            cl.set_proxy(proxy)
-            print(f"Proxy configurado com sucesso!", flush=True)
-        except Exception as e:
-            print(f"ERRO ao configurar proxy: {e}", flush=True)
-    else:
-        print("Nenhum proxy configurado.", flush=True)
-
-    # Tenta carregar a sessão salva
-    if os.path.exists(session_file):
-        try:
-            print(f"Carregando sessão de {session_file}...", flush=True)
-            cl.load_settings(session_file)
-            print("✅ Sessão carregada com sucesso!", flush=True)
-            
-            # Verifica se a sessão ainda é válida
+    # Usa lock para evitar que múltiplos workers tentem fazer login ao mesmo tempo
+    with login_lock:
+        # Verifica novamente se outro worker já autenticou enquanto esperávamos o lock
+        if cl:
             try:
-                account_info = cl.account_info()
-                print(f"✅ Sessão válida! Usuário: {account_info.username} (ID: {account_info.pk})", flush=True)
+                cl.account_info()
                 return cl
-            except LoginRequired:
-                print("⚠️ Sessão expirada, fazendo novo login...", flush=True)
+            except:
+                cl = None
+        
+        # Configura o cliente
+        cl = Client()
+        
+        print("=" * 50, flush=True)
+        print("Carregando sessão do Instagram...", flush=True)
+        
+        # Configurações de Anti-Bloqueio
+        proxy = os.getenv("PROXY")
+        if proxy:
+            print(f"Configurando proxy: {proxy}", flush=True)
+            try:
+                cl.set_proxy(proxy)
+                print(f"Proxy configurado com sucesso!", flush=True)
+            except Exception as e:
+                print(f"ERRO ao configurar proxy: {e}", flush=True)
+        else:
+            print("Nenhum proxy configurado.", flush=True)
+
+        # Tenta carregar a sessão salva
+        if os.path.exists(session_file):
+            try:
+                print(f"Carregando sessão de {session_file}...", flush=True)
+                cl.load_settings(session_file)
+                print("✅ Sessão carregada com sucesso!", flush=True)
+                
+                # Verifica se a sessão ainda é válida
+                try:
+                    account_info = cl.account_info()
+                    print(f"✅ Sessão válida! Usuário: {account_info.username} (ID: {account_info.pk})", flush=True)
+                    print("=" * 50, flush=True)
+                    return cl
+                except LoginRequired:
+                    print("⚠️ Sessão expirada, fazendo novo login...", flush=True)
+                    cl = Client()  # Recria o cliente
+                    if proxy:
+                        cl.set_proxy(proxy)
+            except Exception as e:
+                print(f"⚠️ Erro ao carregar sessão: {e}", flush=True)
                 cl = Client()  # Recria o cliente
                 if proxy:
                     cl.set_proxy(proxy)
-        except Exception as e:
-            print(f"⚠️ Erro ao carregar sessão: {e}", flush=True)
-            cl = Client()  # Recria o cliente
-            if proxy:
-                cl.set_proxy(proxy)
-    
-    # Se não conseguiu carregar a sessão, faz login com SESSION_ID
-    session_id = os.getenv("SESSION_ID")
-    if not session_id:
-        print("ERRO: SESSION_ID não configurado!", flush=True)
-        raise ValueError("SESSION_ID não configurado no arquivo .env. Por favor, configure.")
-    
-    print(f"SESSION_ID encontrado: {session_id[:20]}...", flush=True)
+        
+        # Se não conseguiu carregar a sessão, faz login com SESSION_ID
+        session_id = os.getenv("SESSION_ID")
+        if not session_id:
+            print("ERRO: SESSION_ID não configurado!", flush=True)
+            raise ValueError("SESSION_ID não configurado no arquivo .env. Por favor, configure.")
+        
+        print(f"SESSION_ID encontrado: {session_id[:20]}...", flush=True)
 
-    try:
-        # Autentica usando login_by_sessionid (método correto do instagrapi)
-        print("Autenticando com SESSION_ID...", flush=True)
-        cl.login_by_sessionid(session_id)
-        print("✅ Autenticação bem-sucedida!", flush=True)
-        
-        # Verifica se o sessionid é válido
-        account_info = cl.account_info()
-        print(f"✅ Usuário autenticado: {account_info.username} (ID: {account_info.pk})", flush=True)
-        
-        # Salva a sessão para uso futuro
-        print(f"Salvando sessão em {session_file}...", flush=True)
-        cl.dump_settings(session_file)
-        print("✅ Sessão salva com sucesso!", flush=True)
-        
-        print("Cliente InstaAPI autenticado com sucesso via SESSION_ID. Sessão salva.", flush=True)
-        print("=" * 50, flush=True)
-        return cl
+        try:
+            # Autentica usando login_by_sessionid (método correto do instagrapi)
+            print("Autenticando com SESSION_ID...", flush=True)
+            cl.login_by_sessionid(session_id)
+            print("✅ Autenticação bem-sucedida!", flush=True)
+            
+            # Verifica se o sessionid é válido
+            account_info = cl.account_info()
+            print(f"✅ Usuário autenticado: {account_info.username} (ID: {account_info.pk})", flush=True)
+            
+            # Salva a sessão para uso futuro
+            print(f"Salvando sessão em {session_file}...", flush=True)
+            cl.dump_settings(session_file)
+            print("✅ Sessão salva com sucesso!", flush=True)
+            
+            print("Cliente InstaAPI autenticado com sucesso via SESSION_ID. Sessão salva.", flush=True)
+            print("=" * 50, flush=True)
+            return cl
 
-    except (LoginRequired, ChallengeRequired, TwoFactorRequired, Exception) as e:
-        print(f"\u274c ERRO DE AUTENTICAÇÃO: {type(e).__name__}: {e}", flush=True)
-        print("=" * 50, flush=True)
-        cl = None # Limpa o cliente para forçar nova tentativa
-        raise ConnectionError(f"Falha na autenticação do InstaAPI: {e}")
+        except (LoginRequired, ChallengeRequired, TwoFactorRequired, Exception) as e:
+            print(f"\u274c ERRO DE AUTENTICAÇÃO: {type(e).__name__}: {e}", flush=True)
+            print("=" * 50, flush=True)
+            cl = None # Limpa o cliente para forçar nova tentativa
+            raise ConnectionError(f"Falha na autenticação do InstaAPI: {e}")
 
 # --- Endpoint de Envio de DM ---
 
