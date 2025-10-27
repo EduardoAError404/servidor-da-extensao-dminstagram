@@ -56,8 +56,15 @@ def get_instagrapi_client():
     global cl
     
     # Se o cliente já estiver autenticado, retorna
-    if cl and cl.is_logged_in:
-        return cl
+    if cl:
+        try:
+            # Verifica se ainda está autenticado fazendo uma requisição rápida
+            cl.account_info()
+            return cl
+        except:
+            # Se falhar, reautentica
+            print("⚠️ Sessão expirada, reautenticando...", flush=True)
+            cl = None
 
     # Configura o cliente
     cl = Client()
