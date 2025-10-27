@@ -28,14 +28,16 @@ print("🚀 INICIANDO SERVIDOR INSTADM", flush=True)
 print("="*60, flush=True)
 
 # Debug: Verificar se variáveis de ambiente estão disponíveis
-session_id_check = os.getenv('SESSION_ID')
+instagram_username = os.getenv('INSTAGRAM_USERNAME')
+instagram_password = os.getenv('INSTAGRAM_PASSWORD')
 proxy_check = os.getenv('PROXY')
 flask_env_check = os.getenv('FLASK_ENV')
 
 print(f"🔍 Verificando variáveis de ambiente:", flush=True)
-print(f"   SESSION_ID: {'✅ Configurado' if session_id_check else '❌ NÃO ENCONTRADO'}", flush=True)
-if session_id_check:
-    print(f"   SESSION_ID (primeiros 20 chars): {session_id_check[:20]}...", flush=True)
+print(f"   INSTAGRAM_USERNAME: {'✅ Configurado' if instagram_username else '❌ NÃO ENCONTRADO'}", flush=True)
+if instagram_username:
+    print(f"   INSTAGRAM_USERNAME: {instagram_username}", flush=True)
+print(f"   INSTAGRAM_PASSWORD: {'✅ Configurado' if instagram_password else '❌ NÃO ENCONTRADO'}", flush=True)
 print(f"   PROXY: {'✅ Configurado' if proxy_check else '❌ NÃO ENCONTRADO'}", flush=True)
 if proxy_check:
     print(f"   PROXY: {proxy_check}", flush=True)
@@ -55,7 +57,7 @@ login_lock = threading.Lock()
 def get_instagrapi_client():
     """
     Retorna o cliente InstaAPI, usando persistência de sessão.
-    IMPORTANTE: NÃO faz login a cada requisição, apenas carrega a sessão salva.
+    IMPORTANTE: Faz login apenas uma vez, depois reutiliza a sessão salva.
     """
     global cl
     
@@ -124,21 +126,23 @@ def get_instagrapi_client():
                 if proxy:
                     cl.set_proxy(proxy)
         
-        # Se não conseguiu carregar a sessão, faz login com SESSION_ID
-        session_id = os.getenv("SESSION_ID")
-        if not session_id:
-            print("ERRO: SESSION_ID não configurado!", flush=True)
-            raise ValueError("SESSION_ID não configurado no arquivo .env. Por favor, configure.")
+        # Se não conseguiu carregar a sessão, faz login com usuário e senha
+        username = os.getenv("INSTAGRAM_USERNAME")
+        password = os.getenv("INSTAGRAM_PASSWORD")
         
-        print(f"SESSION_ID encontrado: {session_id[:20]}...", flush=True)
+        if not username or not password:
+            print("ERRO: INSTAGRAM_USERNAME e INSTAGRAM_PASSWORD não configurados!", flush=True)
+            raise ValueError("INSTAGRAM_USERNAME e INSTAGRAM_PASSWORD não configurados. Por favor, configure.")
+        
+        print(f"Fazendo login como: {username}", flush=True)
 
         try:
-            # Autentica usando login_by_sessionid (método correto do instagrapi)
-            print("Autenticando com SESSION_ID...", flush=True)
-            cl.login_by_sessionid(session_id)
+            # Autentica usando login com usuário e senha
+            print("Autenticando com usuário e senha...", flush=True)
+            cl.login(username, password)
             print("✅ Autenticação bem-sucedida!", flush=True)
             
-            # Verifica se o sessionid é válido
+            # Verifica se o login foi bem-sucedido
             account_info = cl.account_info()
             print(f"✅ Usuário autenticado: {account_info.username} (ID: {account_info.pk})", flush=True)
             
@@ -147,7 +151,7 @@ def get_instagrapi_client():
             cl.dump_settings(session_file)
             print("✅ Sessão salva com sucesso!", flush=True)
             
-            print("Cliente InstaAPI autenticado com sucesso via SESSION_ID. Sessão salva.", flush=True)
+            print("Cliente InstaAPI autenticado com sucesso. Sessão salva.", flush=True)
             print("=" * 50, flush=True)
             return cl
 
@@ -212,7 +216,7 @@ def send_dm():
         # Limpa o cliente para forçar nova autenticação na próxima requisição
         global cl
         cl = None 
-        return jsonify({"success": False, "error": "Sessão expirada ou verificação de segurança necessária. Atualize o SESSION_ID no .env.", "details": str(e)}), 401
+        return jsonify({"success": False, "error": "Sessão expirada ou verificação de segurança necessária. Verifique as credenciais.", "details": str(e)}), 401
     
     except FeedbackRequired as e:
         # Erro de Feedback (geralmente acontece após enviar muitas mensagens iguais)
