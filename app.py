@@ -199,15 +199,45 @@ def send_dm():
 # Endpoint de Teste
 @app.route('/test', methods=['GET'])
 def test_route():
-    return jsonify({"status": "Servidor InstaDM Online", "client_status": cl.is_logged_in if cl else "Not Initialized"}), 200
+    try:
+        # Tenta obter/autenticar o cliente
+        client = get_instagrapi_client()
+        
+        # Verifica se está autenticado fazendo uma requisição real
+        try:
+            account_info = client.account_info()
+            return jsonify({
+                "status": "Servidor InstaDM Online",
+                "client_status": "Authenticated",
+                "username": account_info.username,
+                "user_id": str(account_info.pk)
+            }), 200
+        except Exception as e:
+            return jsonify({
+                "status": "Servidor InstaDM Online",
+                "client_status": "Authentication Failed",
+                "error": str(e)
+            }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "Servidor InstaDM Online",
+            "client_status": "Not Initialized",
+            "error": str(e)
+        }), 200
+
+# Tenta inicializar o cliente automaticamente quando o módulo é carregado
+print("\n" + "="*60, flush=True)
+print("🔑 Tentando autenticar automaticamente...", flush=True)
+print("="*60, flush=True)
+try:
+    get_instagrapi_client()
+    print("✅ Autenticação automática bem-sucedida!", flush=True)
+except Exception as e:
+    print(f"⚠️ Aviso: Autenticação automática falhou. O servidor tentará novamente na primeira requisição.", flush=True)
+    print(f"   Erro: {type(e).__name__}: {e}", flush=True)
+print("="*60 + "\n", flush=True)
 
 if __name__ == '__main__':
-    # Tenta inicializar o cliente na inicialização
-    try:
-        get_instagrapi_client()
-    except Exception as e:
-        print(f"Aviso: Não foi possível autenticar na inicialização. O servidor tentará novamente na primeira requisição. Erro: {e}")
-        
     # O servidor deve rodar em 0.0.0.0 para ser acessível pelo expose
     app.run(host='0.0.0.0', port=5001, debug=False)
 
