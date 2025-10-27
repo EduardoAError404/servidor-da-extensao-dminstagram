@@ -51,9 +51,12 @@ cl = None
 
 def get_instagrapi_client():
     """
-    Retorna o cliente InstaAPI, autenticando se necessário.
+    Retorna o cliente InstaAPI, usando persistência de sessão.
+    IMPORTANTE: NÃO faz login a cada requisição, apenas carrega a sessão salva.
     """
     global cl
+    
+    session_file = "session.json"
     
     # Se o cliente já estiver autenticado, retorna
     if cl:
@@ -62,19 +65,17 @@ def get_instagrapi_client():
             cl.account_info()
             return cl
         except:
-            # Se falhar, reautentica
-            print("⚠️ Sessão expirada, reautenticando...", flush=True)
+            # Se falhar, tenta recarregar a sessão
+            print("⚠️ Sessão expirada, recarregando...", flush=True)
             cl = None
 
     # Configura o cliente
     cl = Client()
     
     print("=" * 50, flush=True)
-    print("Iniciando autenticação do Instagram...", flush=True)
+    print("Carregando sessão do Instagram...", flush=True)
     
     # Configurações de Anti-Bloqueio
-    # 1. User-Agent: O InstaAPI usa um User-Agent móvel legítimo por padrão.
-    # 2. Proxy: Se o PROXY estiver definido no .env, será usado.
     proxy = os.getenv("PROXY")
     if proxy:
         print(f"Configurando proxy: {proxy}", flush=True)
@@ -86,11 +87,30 @@ def get_instagrapi_client():
     else:
         print("Nenhum proxy configurado.", flush=True)
 
-    # 3. Persistência de Sessão (Opcional, mas recomendado para produção)
-    # cl.dump_settings("session.json") # Para salvar
-    # cl.load_settings("session.json") # Para carregar
+    # Tenta carregar a sessão salva
+    if os.path.exists(session_file):
+        try:
+            print(f"Carregando sessão de {session_file}...", flush=True)
+            cl.load_settings(session_file)
+            print("✅ Sessão carregada com sucesso!", flush=True)
+            
+            # Verifica se a sessão ainda é válida
+            try:
+                account_info = cl.account_info()
+                print(f"✅ Sessão válida! Usuário: {account_info.username} (ID: {account_info.pk})", flush=True)
+                return cl
+            except LoginRequired:
+                print("⚠️ Sessão expirada, fazendo novo login...", flush=True)
+                cl = Client()  # Recria o cliente
+                if proxy:
+                    cl.set_proxy(proxy)
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar sessão: {e}", flush=True)
+            cl = Client()  # Recria o cliente
+            if proxy:
+                cl.set_proxy(proxy)
     
-    # Autenticação via Session ID
+    # Se não conseguiu carregar a sessão, faz login com SESSION_ID
     session_id = os.getenv("SESSION_ID")
     if not session_id:
         print("ERRO: SESSION_ID não configurado!", flush=True)
@@ -98,29 +118,20 @@ def get_instagrapi_client():
     
     print(f"SESSION_ID encontrado: {session_id[:20]}...", flush=True)
 
-    # 3. Persistência de Sessão: Tenta carregar a sessão salva
-    session_file = "session.json" # Arquivo genérico, pois não temos o username
-    if os.path.exists(session_file):
-        cl.load_settings(session_file)
-        print(f"Sessão carregada de {session_file}")
-
     try:
         # Autentica usando login_by_sessionid (método correto do instagrapi)
         print("Autenticando com SESSION_ID...", flush=True)
         cl.login_by_sessionid(session_id)
-        print("\u2705 Autenticação bem-sucedida!", flush=True)
+        print("✅ Autenticação bem-sucedida!", flush=True)
         
-        # Verifica se o sessionid é válido fazendo uma requisição real
-        try:
-            print("Obtendo informações da conta...", flush=True)
-            account_info = cl.account_info()
-            print(f"\u2705 Usuário autenticado: {account_info.username} (ID: {account_info.pk})", flush=True)
-        except Exception as e:
-            print(f"\u274c Erro ao obter account_info: {type(e).__name__}: {e}", flush=True)
-            raise LoginRequired("Falha ao verificar autenticação. O SESSION_ID pode ter expirado.")
+        # Verifica se o sessionid é válido
+        account_info = cl.account_info()
+        print(f"✅ Usuário autenticado: {account_info.username} (ID: {account_info.pk})", flush=True)
         
-        # Salva a sessão para uso futuro (Anti-Bloqueio)
+        # Salva a sessão para uso futuro
+        print(f"Salvando sessão em {session_file}...", flush=True)
         cl.dump_settings(session_file)
+        print("✅ Sessão salva com sucesso!", flush=True)
         
         print("Cliente InstaAPI autenticado com sucesso via SESSION_ID. Sessão salva.", flush=True)
         print("=" * 50, flush=True)
