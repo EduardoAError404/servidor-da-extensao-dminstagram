@@ -168,11 +168,11 @@ def send_dm():
         # O InstaAPI envia a DM para o User ID
         client.direct_send(text=message, user_ids=[user_id])
         
-        # 4. Implementação de Rate Limiting (Anti-Bloqueio)
-        # Usa os delays configurados pela extensão
+        # 4. Retorna sucesso com delay recomendado
+        # O delay será aplicado pela EXTENSÃO, não pelo servidor
+        # Isso evita timeout do Gunicorn
         delay = random.randint(delay_min, delay_max)
-        print(f"DM enviada para @{username}. Aguardando {delay} segundos (Rate Limit) antes de finalizar a requisição.")
-        time.sleep(delay)
+        print(f"✅ DM enviada para @{username}. Delay recomendado: {delay}s", flush=True)
 
         return jsonify({"success": True, "username": username, "message": message, "delay": delay}), 200
 
