@@ -22,6 +22,25 @@ sys.stdout = sys.stderr
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
+print("="*60, flush=True)
+print("🚀 INICIANDO SERVIDOR INSTADM", flush=True)
+print("="*60, flush=True)
+
+# Debug: Verificar se variáveis de ambiente estão disponíveis
+session_id_check = os.getenv('SESSION_ID')
+proxy_check = os.getenv('PROXY')
+flask_env_check = os.getenv('FLASK_ENV')
+
+print(f"🔍 Verificando variáveis de ambiente:", flush=True)
+print(f"   SESSION_ID: {'✅ Configurado' if session_id_check else '❌ NÃO ENCONTRADO'}", flush=True)
+if session_id_check:
+    print(f"   SESSION_ID (primeiros 20 chars): {session_id_check[:20]}...", flush=True)
+print(f"   PROXY: {'✅ Configurado' if proxy_check else '❌ NÃO ENCONTRADO'}", flush=True)
+if proxy_check:
+    print(f"   PROXY: {proxy_check}", flush=True)
+print(f"   FLASK_ENV: {flask_env_check or 'não configurado'}", flush=True)
+print("="*60, flush=True)
+
 app = Flask(__name__)
 CORS(app) # Adiciona suporte a CORS para todas as rotas e origens
 
